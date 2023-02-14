@@ -104,8 +104,13 @@ int draw_line(PLINE l)
 	int deltay;
 	int error;
 	int y;
+	int x;
 	int ystep;
-	if(abs(*l.p1.y - *l.p0.y) > abs(*l.p1.x - *l.p0.x))
+	int x0 = l->p0.x;
+	int x1 = l->p1.x;
+	int y0 = l->p0.y;
+	int y1 = l->p1.y;
+	if(abs(y1 - y0) > abs(x1 - x0))
 	{
 		steep = 1;
 	}else{
@@ -113,25 +118,25 @@ int draw_line(PLINE l)
 	}
 	if (steep == 1)
 	{
-		swap(l->p0.x, l.p0.y);
-		swap(l.p1.x, l.p1.y);
+		swap(x0, y0);
+		swap(x1, y1);
 	}
-	if(l.p0.x > l.p1.x)
+	if(x0 > x1)
 	{
-		swap(l.p0.x, l.p1.x);
-		swap(l.p0.y, l.p1.y);
+		swap(x0, x1);
+		swap(y0, y1);
 	}
-	deltax = l.p1.x - l.p0.x;
-	deltay = abs(l.p1.y - l.p0.y);
+	deltax = x1 - x0;
+	deltay = abs(y1 - y0);
 	error = 0;
-	y = l.p0.y;
-	if (l.p0.y < l.p1.y )
+	y = y0;
+	if (y0 < y1)
 	{
 		ystep = 1;
 	}else{
 		ystep = -1;
 	}
-	for(int x; x < (l.p0.x - l.p1.x); x++)
+	for(int x; x < (x0 - x1); x++)
 	{
 		if (steep == 1)
 		{
@@ -139,10 +144,10 @@ int draw_line(PLINE l)
 		}else{
 			graphic_pixel_set(x, y);
 		}
-		error = error + deltay
+		error = error + deltay;
 		if ((2*error) >= deltax){
 			y = y + ystep;
-			error = error- deltax
+			error = error - deltax;
 		}
 	}
 }
@@ -164,12 +169,27 @@ int swap(int i1, int i2)
 	return i1, i2;
 }
 
-LINE lines
+LINE lines[] = {
+	{40,10, 100,10},
+	{40,10, 100,20},
+	{40,10, 100,30},
+	{40,10, 100,40},
+	{40,10, 100,50},
+	{40,10, 100,60},
+	{40,10, 90,60},
+	{40,10, 80,10},
+	{40,10, 70,10},
+	{40,10, 60,10},
+	{40,10, 50,10},
+	{40,10, 40,10}
+};
+
 
 void main(void)
 {
 	graphic_initalize();
 	graphic_clear_screen();
+	draw_line(&lines[0]);
 	while(1)
 	{
 		for (int i = 0; i < sizeof(lines)/sizeof(LINE); i++)
