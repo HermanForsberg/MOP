@@ -11,6 +11,7 @@ __asm__ volatile(" BL main\n");					/* call main */
 __asm__ volatile(".L1: B .L1\n");				/* never return */
 }
 
+
 #define STK_CTRL ((volatile unsigned int *)(0xE000E010))  
 #define STK_LOAD ((volatile unsigned int *)(0xE000E014))  
 #define STK_VAL ((volatile unsigned int *)(0xE000E018))  
@@ -118,13 +119,13 @@ int draw_line(PLINE l)
 	}
 	if (steep == 1)
 	{
-		swap(x0, y0);
-		swap(x1, y1);
+		swap(&x0, &y0);
+		swap(&x1, &y1);
 	}
 	if(x0 > x1)
 	{
-		swap(x0, x1);
-		swap(y0, y1);
+		swap(&x0, &x1);
+		swap(&y0, &y1);
 	}
 	deltax = x1 - x0;
 	deltay = abs(y1 - y0);
@@ -136,7 +137,7 @@ int draw_line(PLINE l)
 	}else{
 		ystep = -1;
 	}
-	for(int x; x < (x0 - x1); x++)
+	for(int x = x0; x <= x1; x++)
 	{
 		if (steep == 1)
 		{
@@ -160,13 +161,12 @@ int abs(int i)
 return i;
 }
 
-int swap(int i1, int i2)
+void swap(int *i1, int *i2)
 {
 	int tmp;
-	tmp = i1;
-	i1 = i2;
-	i2 = tmp;
-	return i1, i2;
+	tmp = *i1;
+	*i1 = *i2;
+	*i2 = tmp;
 }
 
 LINE lines[] = {
@@ -177,11 +177,11 @@ LINE lines[] = {
 	{40,10, 100,50},
 	{40,10, 100,60},
 	{40,10, 90,60},
-	{40,10, 80,10},
-	{40,10, 70,10},
-	{40,10, 60,10},
-	{40,10, 50,10},
-	{40,10, 40,10}
+	{40,10, 80,60},
+	{40,10, 70,60},
+	{40,10, 60,60},
+	{40,10, 50,60},
+	{40,10, 40,60}
 };
 
 
@@ -189,15 +189,13 @@ void main(void)
 {
 	graphic_initalize();
 	graphic_clear_screen();
-	draw_line(&lines[0]);
 	while(1)
 	{
 		for (int i = 0; i < sizeof(lines)/sizeof(LINE); i++)
 		{
 			draw_line(&lines[i]);
-			delay_milli(500);
+			delay_milli(5);
 		}
 		graphic_clear_screen();
 	}
 }
-
