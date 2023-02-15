@@ -224,10 +224,10 @@ int draw_rect(PRECT r)
 	if(start_y <= 0){
 		return 0;
 	}
-	if(end_x > 128){
+	if(end_x >= 128){
 		return 0;
 	}
-	if(end_y > 64){
+	if(end_y >= 64){
 		return 0;
 	}
 	return 1;
