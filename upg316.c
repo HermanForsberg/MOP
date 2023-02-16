@@ -154,16 +154,14 @@ void kdbActivate(unsigned int row) { //hjälp rutin (MULTIPLEX SAKER FATTAR EJ)
 
 
 char keyb(void){
-	//char keys[] = {1,2,3,0xA,4,5,6,0xB,7,8,9,0x39,0xE,0,0xF6,0xD}; 
+	char keys[] = {1,2,3,0xA,4,5,6,0xB,7,8,9,0x39,0xE,0,0xF6,0xD}; 
 	int row;
 	int col;
 	for(row = 1; row <= 4; row++){ //väljer en rad att se på
 		kdbActivate(row);			//Ger ström till den raden vi har valt 
 		col = kbdGetCol();
-		if( col = 3){
-			if(row = 1) return 3;
-			if(row = 2) return 6;
-			if(row = 3) return 9;
+		if(col == 3){
+			return (row*3 + (col-3));
 		}
 	}
 	kdbActivate(0);
@@ -238,9 +236,13 @@ void clear_object(POBJECT o)
 	int y = o->posy;
 	int drawx;
 	int drawy;
+	char tempx;
+	char tempy;
 	for(int i = 0; i < numpoints; i++)
 	{
 		POINT crp = px[i];
+		tempx = crp.x;
+		tempy = crp.y;
 		drawx = x + crp.x;
 		drawy = y + crp.y;
 		graphic_pixel_clear(drawx, drawy);
@@ -282,11 +284,10 @@ void set_ballobject_speed(POBJECT o, int speedx, int speedy)
 
 void move_paddleobject(POBJECT o)
 {
+	clear_object(o);
 	int psy = o->posy;
 	int dry = o->diry;
 	o->posy = psy + dry;
-	
-	clear_object(o);
 	
 	if(o->posy < 1){
 		o->diry = 0;
@@ -299,7 +300,7 @@ void move_paddleobject(POBJECT o)
 	draw_object(o);
 }
 
-void set_paddleobject_speed(POBJECT o, int speedy)
+void set_paddleobject_speed(POBJECT o, int speedx, int speedy)
 {
 	o->diry = speedy;
 }
@@ -329,7 +330,7 @@ OBJECT ball = {
 //PADDLE--------------------------------
 GEOMETRY paddle_geometry = 
 {
-	25, 5, 9,
+	27, 5, 9,
 	{
 		{0,0},{0,1},{0,2},{0,3},{0,4},{0,5},{0,6},{0,7},{0,8},{1,0},{1,8},{2,0},{2,3},{2,4},
 		{2,5},{2,8},{3,0},{3,8},{4,0},{4,1},{4,2},{4,3},{4,4},{4,5},{4,6},{4,7},{4,8}
@@ -351,23 +352,39 @@ OBJECT paddle = {
 
 int main(void)
 {
-	char c;
+	char c;	
 	POBJECT p = &ball;
-	POBJECT paddle = &paddle;
+	POBJECT pdl = &paddle;
 	init_app();
 	graphic_initalize();
 	graphic_clear_screen();
+
 	while(1)
 	{
 		p->move(p);
-		paddle->move(paddle);
+		pdl->move(pdl);
 		delay_milli(20);
+		int paddle_posx = pdl->posx;
+		int paddle_posy = pdl->posy;
+		int ball_posx = p->posx;
+		int ball_posy = p->posy;
+		
+		if(paddle_posx < ball_posx)
+		{
+			if(paddle_posy < ball_posy)
+			{
+				p->set_speed(p, -p->dirx, p->diry);
+				p->move(p);
+			}
+		}
+		
 		c=keyb();
 		switch(c)
 		{
-			case 3: paddle->set_speed(paddle, 2); break;
-			case 6: p->set_speed(p, -3, 0); break;
-			case 9: paddle->set_speed(paddle, 2); break;
+			case 3: pdl->set_speed(pdl, 0, -2); break;
+			case 6: p->posx = 64; p->posy = 32; p->dirx = 4; p->diry = 1; break;
+			case 9: pdl->set_speed(pdl, 0, 2); break;
+			default: pdl->set_speed(pdl, 0, 0); break;
 		}
 	}
 }
