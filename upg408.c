@@ -43,6 +43,7 @@ __asm__ volatile(".L1: B .L1\n");				/* never return */
 #define EXTI_IMR ((volatile unsigned int *) (0x40013C00))
 #define EXTI_RTSR ((volatile unsigned int *) (0x40013C08))
 #define EXTI_FTSR ((volatile unsigned int *) (0x40013C0C))
+#define EXTI_PR ((volatile unsigned int *) (0x40013C14))
 
 #define NVIC_ISER0 ((volatile unsigned int *) (0xE000E100))
 
@@ -54,7 +55,7 @@ unsigned int count;
 void EXTI3_irq_handler(void)
 {
 	count += 1;
-	
+	*EXTI_PR |= 8;
 }
 
 
