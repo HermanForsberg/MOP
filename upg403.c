@@ -38,24 +38,40 @@ __asm__ volatile(".L1: B .L1\n");				/* never return */
 #define GPIO_D_ODRLOW ((volatile unsigned char *)(0x40020C14))
 #define GPIO_D_ODRHIGH ((volatile unsigned char *)(0x40020C15))
 
-#define SYSCFG_EXTICR1 ((volatile unsigned int *) (0x40013808))
+static int systick_flag;
 
-#define EXTI_IMR ((volatile unsigned int *) (0x40013C00))
-#define EXTI_RTSR ((volatile unsigned int *) (0x40013C08))
-#define EXTI_FTSR ((volatile unsigned int *) (0x40013C0C))
-#define EXTI_PR ((volatile unsigned int *) (0x40013C14))
+//DELAY==============================================================================
 
-#define NVIC_ISER0 ((volatile unsigned int *) (0xE000E100))
 
-static int EXTI3_flag;
+void delay_1mikro(void)
+{
+	systick_flag = 0;
+	*STK_CTRL = 0;
+	*STK_LOAD = ( 168 - 1 );
+	*STK_VAL = 0;
+	*STK_CTRL = 7;
+}
 
-unsigned int count;
+unsigned int delay_count;
+void delay(unsigned int count)
+{
+	if (count == 0) return;
+	delay_count = count;
+	delay_1mikro();
+}
+
 
 //HANDLER==============================================================================
-void EXTI3_irq_handler(void)
+void systick_irq_handler(void)
 {
-	count += 1;
-	*EXTI_PR |= 8;
+	*STK_CTRL = 0;
+	delay_count -= 1;
+	if(delay_count > 0)
+	{
+		delay_1mikro();
+	}else{
+		systick_flag = 1;
+	}
 }
 
 
@@ -63,32 +79,34 @@ void EXTI3_irq_handler(void)
 
 void init_handler_systick(void)
 {
-	*((void (**)(void)) 0x2001C064) = EXTI3_irq_handler;
-	EXTI3_flag = 0;
+	*((void (**)(void)) 0x2001C03C) = systick_irq_handler;
+	systick_flag = 0;
 }
 
+
+
+#define DELAY_COUNT 1000
 
 void init_app(void)
 {
 	*SBC_VTOR = 0x2001C000;
 	*GPIO_D_MODER = 0x00005555;
-	
-	*SYSCFG_EXTICR1 &= ~0xF000;
-	*SYSCFG_EXTICR1 |= 0x4000;
-	*EXTI_IMR |= 8;
-	*EXTI_RTSR |= 8;
-	*EXTI_FTSR &= ~8;
 	init_handler_systick();
-	
-	*NVIC_ISER0 |= (1<<9);
-	
 }
 
 void main(void)
 {
 	init_app();
+	*GPIO_D_ODRLOW = 0;
+	delay(DELAY_COUNT);
+	*GPIO_D_ODRLOW = 0xFF;
 	while(1)
 	{
-		*GPIO_D_ODRLOW = count;
+		if(systick_flag)
+		{
+			break;
+		}
 	}
+	*GPIO_D_ODRLOW = 0;
 }
+
