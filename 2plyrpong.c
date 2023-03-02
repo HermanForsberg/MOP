@@ -70,22 +70,21 @@ void graphic_pixel_clear(int x, int y)
 //Gör en macro för pekarn som pekar på värdet i registerna
 #define GPIO_D_MODER ((volatile unsigned int *)PORT_D)
 
-//Mikrokontrollerns GPIO_PUPDR register 
-#define GPIO_PUPDR ((volatile unsigned int *)PORT_D + 0x0C)
+//Mikrokontrollerns GPIO_D_PUPDR register 
+#define GPIO_D_PUPDR ((volatile unsigned int *)PORT_D + 0x0C)
 
-//Mikrokontrollerns speed GPIO_OSPEEDR register 
-#define GPIO_OSPEEDR ((volatile unsigned int *)PORT_D +0x08)
+//Mikrokontrollerns speed GPIO_D_OSPEEDR register 
+#define GPIO_D_OSPEEDR ((volatile unsigned int *)PORT_D +0x08)
 
 //Mikrokontrollerns input register GPIO_ODR denna är kolomnen för key 
 #define GPIO_D_ODR_HIGH ((volatile unsigned char *)PORT_D +0x15) 
 
-#define GPIO_ODR_LOW ((volatile unsigned char *)PORT_D +0x14) 
+#define GPIO_D_ODR_LOW ((volatile unsigned char *)PORT_D +0x14) 
 
 //Mikrokontrollerns input register GPIO_IDR denna är raden för key 
-#define GPIO_IDR_HIGH ((volatile unsigned char *)PORT_D +0x11) 
+#define GPIO_D_IDR_HIGH ((volatile unsigned char *)PORT_D +0x11) 
 
-#define GPIO_OTYPER ((volatile unsigned short *)(PORT_D + 0x4))
-
+#define GPIO_D_OTYPER ((volatile unsigned short *)(PORT_D + 0x4))
 
 //DELAY===============================================================
 
@@ -132,7 +131,7 @@ void delay_milli(unsigned int ms)
 
 int kbdGetCol_l(void){
 	unsigned char cl; 
-	cl = *GPIO_IDR_HIGH; //rad värdet placeras i c 
+	cl = *GPIO_D_IDR_HIGH; //rad värdet placeras i c 
 	if(cl & 0x1) return 1;
 	return 0; 
 }
@@ -140,7 +139,7 @@ int kbdGetCol_l(void){
 
 int kbdGetCol_r(void){
 	unsigned char cl; 
-	cl = *GPIO_IDR_HIGH; //rad värdet placeras i c 
+	cl = *GPIO_D_IDR_HIGH; //rad värdet placeras i c 
 	if(cl & 0x4) return 3;
 	return 0; 
 }
@@ -199,11 +198,11 @@ void init_app(void)
 		/* accessing the values using the pointers */
 	*((unsigned long *) 0x40023830) = 0x18; // starta klockor port D och E
 	*GPIO_D_MODER = 0x55005555; //Gör D 8-15 till en inport och 0-7 till utport  
-	*GPIO_PUPDR = 0x00AA0000; // sätter 10 (pull-down ger 1 då kretsen är sluten) på varje 8-15 pin floating på 0-7
-	*GPIO_OSPEEDR = 0x55555555;  // port D medium speed	
+	*GPIO_D_PUPDR = 0x00AA0000; // sätter 10 (pull-down ger 1 då kretsen är sluten) på varje 8-15 pin floating på 0-7
+	*GPIO_D_OSPEEDR = 0x55555555;  // port D medium speed	
 	*GPIO_D_ODR_HIGH = 0;
-	*GPIO_ODR_LOW = 0;
-	*GPIO_OTYPER = 0x0000000;
+	*GPIO_D_ODR_LOW = 0;
+	*GPIO_D_OTYPER = 0x0000000;
 }
 
 
@@ -346,7 +345,7 @@ GEOMETRY ball_geometry =
 
 OBJECT ball = {
 	&ball_geometry,
-	4,0,
+	4,1,
 	64,30,
 	draw_object,
 	clear_object,
@@ -384,6 +383,136 @@ OBJECT paddle_left = {
 	set_paddleobject_speed,
 };
 
+//ASCII-display=========================================================================================================
+
+void ascii_ctrl_bit_set( char x )
+{ /* x: bitmask bits are 1 to set */
+char c;
+c = *GPIO_E_ODRLOW;
+*GPIO_E_ODRLOW = B_SELECT | x | c;
+}
+
+void ascii_ctrl_bit_clear( char x )
+{ /* x: bitmask bits are 1 to clear */
+char c;
+c = *GPIO_E_ODRLOW;
+c = c & ~x;
+*GPIO_E_ODRLOW = B_SELECT | c;
+}
+
+unsigned char ascii_read_controller( void )
+{
+*GPIO_E_MODER = 0x00005555;
+char c;
+ascii_ctrl_bit_set( B_E );
+delay_250ns();
+delay_250ns();
+c = *GPIO_E_IDRHIGH;
+ascii_ctrl_bit_clear( B_E );
+*GPIO_E_MODER = 0x55555555;
+return c;
+}
+
+unsigned char ascii_read_data(void)
+{
+char c;
+ascii_ctrl_bit_set( B_RW );
+ascii_ctrl_bit_set( B_RS );
+c = ascii_read_controller();
+return c;
+}
+
+unsigned char ascii_read_status( void )
+{
+char c;
+ascii_ctrl_bit_set( B_RW );
+ascii_ctrl_bit_clear( B_RS );
+c = ascii_read_controller();
+return c;
+}
+
+char ascii_write_controller(unsigned char cmd)
+{
+delay_milli(1);
+ascii_ctrl_bit_set( B_E );
+*GPIO_E_ODRHIGH = cmd;
+delay_250ns();
+ascii_ctrl_bit_clear(B_E);
+delay_250ns();
+}
+
+void ascii_write_cmd(unsigned char cmd)
+{
+ascii_ctrl_bit_clear( B_RS );
+ascii_ctrl_bit_clear( B_RW );
+ascii_write_controller(cmd);
+
+}
+
+void ascii_write_data(unsigned char data)
+{
+ascii_ctrl_bit_set( B_RS );
+ascii_ctrl_bit_clear( B_RW );
+ascii_write_controller(data);
+}
+
+void ascii_init(void)
+{
+delay_milli(1);
+ascii_write_cmd(56);
+delay_milli(2);
+ascii_write_cmd(0xe);
+delay_milli(2);
+clear_display();
+delay_milli(2);
+ascii_write_cmd(6);
+delay_milli(2);
+}
+
+void clear_display()
+{
+while((ascii_read_status() & 0x80)== 0x80 );
+delay_micro(8);
+ascii_write_cmd(1);
+delay_milli(2);
+}
+
+
+void ascii_gotoxy(int x, int y)
+{
+int adress = x-1;
+if (y == 2){
+	adress = adress + 0x40;
+}
+ascii_write_cmd(0x80 | adress);
+	
+}
+
+void ascii_write_char(unsigned char c)
+{
+while((ascii_read_status() & 0x80)== 0x80 );
+delay_micro(8);
+ascii_write_data(c);
+delay_milli(2);
+}
+
+//ASCII-write score funktion----------------------------------------------------------
+void display_score(char p1, char p2)
+{
+	char *s;
+	char score_p1[] = "Player 1 score: 0";
+	char score_p2[] = "Player 2 score: 0";
+	ascii_gotoxy(1, 1);
+	s = score_p1;
+	while(*s){
+		ascii_write_char(*s++);
+	}
+	ascii_gotoxy(1, 2);
+	s = score_p2;
+	while(*s){
+		ascii_write_char(*s++);
+	}
+}
 
 
 //MAIN ---------------------------------------------------------------------------------------------------------------
@@ -392,13 +521,16 @@ int main(void)
 {
 	char c;	
 	char s;
+	unsigned char points_player1 = 0x30;
+	unsigned char points_player2 = 0x30;
 	POBJECT p = &ball;
 	POBJECT pdl_r = &paddle_right;
 	POBJECT pdl_l = &paddle_left;
 	init_app();
+	ascii_init();
 	graphic_initalize();
 	graphic_clear_screen();
-
+	display_score(points_player1, points_player2);
 	while(1)
 	{
 		p->move(p);
@@ -435,12 +567,33 @@ int main(void)
 			}
 		}
 		
-		if(ball_posx < 0 || ball_posx+4 > 128)
+		
+		//ball out of bounce--------
+		if(ball_posx < 0)
 		{
 			p->posx = 64; 
 			p->posy = 32; 
 			p->dirx = 4; 
-			p->diry = 0;
+			p->diry = 1;
+			points_player2 += 1;
+			ascii_gotoxy(17, 1);
+			ascii_write_char(points_player2);
+		}
+		
+		if(ball_posx+4 > 128)
+		{
+			p->posx = 64; 
+			p->posy = 32; 
+			p->dirx = 4; 
+			p->diry = 1;
+			points_player1 += 1;
+			ascii_gotoxy(17, 2);
+			ascii_write_char(points_player1);
+		}
+		
+		if(points_player2 >= 0x35 || points_player1 >= 0x35)
+		{
+			break;
 		}
 		
 		s=keyb_l();
@@ -458,6 +611,14 @@ int main(void)
 			case 7: pdl_l->set_speed(pdl_l, 0, 2); break;
 			default: pdl_l->set_speed(pdl_l, 0, 0); break;
 		}
+	}
+	graphic_clear_screen();
+	char* ggwp;
+	char gg[] = "game over!";
+	ggwp = gg;
+	ascii_gotoxy(1, 1);
+	while(*ggwp){
+		ascii_write_char(*ggwp++);
 	}
 }
 
