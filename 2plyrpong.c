@@ -42,13 +42,53 @@ void graphic_pixel_clear(int x, int y)
 	__asm volatile (" BX LR\n");
 }
 
-//DELAY===============================================================
-
+//defines===============================================================
 #define STK_CTRL ((volatile unsigned int *)(0xE000E010))  
 #define STK_LOAD ((volatile unsigned int *)(0xE000E014))  
 #define STK_VAL ((volatile unsigned int *)(0xE000E018))  
 #define Bargraph ((volatile unsigned int *)(0x40021014))
-#define GPIO_MODER ((volatile unsigned int *)(0x40021000))
+
+
+#define B_E 0x40 /* Enable-signal */
+#define B_SELECT 4 /* Välj ASCII-display */
+#define B_RW 2 /* 0=Write, 1=Read */
+#define B_RS 1 /* 0=Control, 1=Data */
+
+
+#define GPIO_E_MODER ((volatile unsigned int *)(0x40021000))
+
+#define GPIO_E_IDRLOW ((volatile unsigned char *)(0x40021010))
+#define GPIO_E_IDRHIGH ((volatile unsigned char *)(0x40021011))
+
+#define GPIO_E_ODRLOW ((volatile unsigned char *)(0x40021014))
+#define GPIO_E_ODRHIGH ((volatile unsigned char *)(0x40021015))
+
+
+//Macro för port D (vi skriver PORT_D då vi använder adressen)
+#define PORT_D 0x40020C00
+
+//Gör en macro för pekarn som pekar på värdet i registerna
+#define GPIO_D_MODER ((volatile unsigned int *)PORT_D)
+
+//Mikrokontrollerns GPIO_PUPDR register 
+#define GPIO_PUPDR ((volatile unsigned int *)PORT_D + 0x0C)
+
+//Mikrokontrollerns speed GPIO_OSPEEDR register 
+#define GPIO_OSPEEDR ((volatile unsigned int *)PORT_D +0x08)
+
+//Mikrokontrollerns input register GPIO_ODR denna är kolomnen för key 
+#define GPIO_D_ODR_HIGH ((volatile unsigned char *)PORT_D +0x15) 
+
+#define GPIO_ODR_LOW ((volatile unsigned char *)PORT_D +0x14) 
+
+//Mikrokontrollerns input register GPIO_IDR denna är raden för key 
+#define GPIO_IDR_HIGH ((volatile unsigned char *)PORT_D +0x11) 
+
+#define GPIO_OTYPER ((volatile unsigned short *)(PORT_D + 0x4))
+
+
+//DELAY===============================================================
+
 
 void delay_250ns( void )
 {
@@ -61,6 +101,7 @@ while( (*STK_CTRL & 0x10000 )== 0 );
 *STK_CTRL = 0;
 }
 
+
 void delay_micro(unsigned int us)
 {
 while( us > 0 )
@@ -72,6 +113,7 @@ delay_250ns();
 us--;
 }
 }
+
 
 void delay_milli(unsigned int ms)
 {
@@ -86,68 +128,36 @@ void delay_milli(unsigned int ms)
 }
 
 //Tangetbordsrutin----------------------------------------------------------------------------------------------------
-//Macro för port D (vi skriver PORT_D då vi använder adressen)
-#define PORT_D 0x40020C00
-
-//Gör en macro för pekarn som pekar på värdet i registerna
-#define GPIO_MODER ((volatile unsigned int *)PORT_D)
-
-//Mikrokontrollerns GPIO_PUPDR register 
-#define GPIO_PUPDR ((volatile unsigned int *)PORT_D + 0x0C)
-
-//Mikrokontrollerns speed GPIO_OSPEEDR register 
-#define GPIO_OSPEEDR ((volatile unsigned int *)PORT_D +0x08)
-
-//Mikrokontrollerns input register GPIO_ODR denna är kolomnen för key 
-#define GPIO_ODR_HIGH ((volatile unsigned char *)PORT_D +0x15) 
-
-//Mikrokontrollerns input register GPIO_IDR denna är raden för key 
-#define GPIO_IDR_HIGH ((volatile unsigned char *)PORT_D +0x11) 
-
-#define GPIO_ODR_LOW ((volatile unsigned char *)PORT_D +0x14) 
-
-#define GPIO_OTYPER ((volatile unsigned short *)(PORT_D + 0x4))
 
 
-
-
-void app_init(void){
-	/* accessing the values using the pointers */
-*((unsigned long *) 0x40023830) = 0x18; // starta klockor port D och E
-*GPIO_MODER = 0x55005555; //Gör D 8-15 till en inport och 0-7 till utport  
-*GPIO_PUPDR = 0x00AA0000; // sätter 10 (pull-down ger 1 då kretsen är sluten) på varje 8-15 pin floating på 0-7
-*GPIO_OSPEEDR = 0x55555555;  // port D medium speed	
-*GPIO_ODR_HIGH = 0;
-*GPIO_ODR_LOW = 0;
-*GPIO_OTYPER = 0x0000000;
-}
-
-
-int kbdGetCol(void){
-	unsigned char c; 
-	c = *GPIO_IDR_HIGH; //rad värdet placeras i c 
-	if(c & 0x8) return 4;
-	if(c & 0x4) return 3;
-	if(c & 0x2) return 2;
-	if(c & 0x1) return 1;
+int kbdGetCol_l(void){
+	unsigned char cl; 
+	cl = *GPIO_IDR_HIGH; //rad värdet placeras i c 
+	if(cl & 0x1) return 1;
 	return 0; 
-		
 }
 
+
+int kbdGetCol_r(void){
+	unsigned char cl; 
+	cl = *GPIO_IDR_HIGH; //rad värdet placeras i c 
+	if(cl & 0x4) return 3;
+	return 0; 
+}
 
 
 // Hjälp rution för att sätta output registret till den kolumn vi tittar på. Om ett värde ges i GPIO_IDR så vet vi vilken rad och kolumn.
 void kdbActivate(unsigned int row) { //hjälp rutin (MULTIPLEX SAKER FATTAR EJ)
 	switch(row){
-		case 1: *GPIO_ODR_HIGH = 0x10; 
+		case 1: *GPIO_D_ODR_HIGH = 0x10; 
 			break; 
-		case 2: *GPIO_ODR_HIGH = 0x20; 
+		case 2: *GPIO_D_ODR_HIGH = 0x20; 
 			break;
-		case 3: *GPIO_ODR_HIGH = 0x40; 
+		case 3: *GPIO_D_ODR_HIGH = 0x40; 
 			break;
-		case 4: *GPIO_ODR_HIGH = 0x80; 
+		case 4: *GPIO_D_ODR_HIGH = 0x80; 
 			break;
-		default: *GPIO_ODR_HIGH = 0x0;
+		default: *GPIO_D_ODR_HIGH = 0x0;
 			break;
 	}
 }
@@ -159,7 +169,7 @@ char keyb_r(void){
 	int col;
 	for(row = 1; row <= 4; row++){ //väljer en rad att se på
 		kdbActivate(row);			//Ger ström till den raden vi har valt 
-		col = kbdGetCol();
+		col = kbdGetCol_r();
 		if(col == 3){
 			return (row*3 + (col-3));
 		}
@@ -174,7 +184,7 @@ char keyb_l(void){
 	int col;
 	for(row = 1; row <= 4; row++){ //väljer en rad att se på
 		kdbActivate(row);			//Ger ström till den raden vi har valt 
-		col = kbdGetCol();
+		col = kbdGetCol_l();
 		if(col == 1){
 			return (row*3 + (col-3));
 		}
@@ -188,10 +198,10 @@ void init_app(void)
 {
 		/* accessing the values using the pointers */
 	*((unsigned long *) 0x40023830) = 0x18; // starta klockor port D och E
-	*GPIO_MODER = 0x55005555; //Gör D 8-15 till en inport och 0-7 till utport  
+	*GPIO_D_MODER = 0x55005555; //Gör D 8-15 till en inport och 0-7 till utport  
 	*GPIO_PUPDR = 0x00AA0000; // sätter 10 (pull-down ger 1 då kretsen är sluten) på varje 8-15 pin floating på 0-7
 	*GPIO_OSPEEDR = 0x55555555;  // port D medium speed	
-	*GPIO_ODR_HIGH = 0;
+	*GPIO_D_ODR_HIGH = 0;
 	*GPIO_ODR_LOW = 0;
 	*GPIO_OTYPER = 0x0000000;
 }
@@ -337,7 +347,7 @@ GEOMETRY ball_geometry =
 OBJECT ball = {
 	&ball_geometry,
 	4,0,
-	64,32,
+	64,30,
 	draw_object,
 	clear_object,
 	move_ballobject,
@@ -357,7 +367,7 @@ GEOMETRY paddle_geometry =
 OBJECT paddle_right = {
 	&paddle_geometry,
 	0,0,
-	120,32,
+	115,27,
 	draw_object,
 	clear_object,
 	move_paddleobject,
@@ -367,7 +377,7 @@ OBJECT paddle_right = {
 OBJECT paddle_left = {
 	&paddle_geometry,
 	0,0,
-	8,32,
+	8,27,
 	draw_object,
 	clear_object,
 	move_paddleobject,
@@ -406,9 +416,9 @@ int main(void)
 		
 		
 		//COLISON with RIGHT paddle
-		if(pdl_r_posx < ball_posx || ball_posx+4 < pdl_r_posx)
+		if(pdl_r_posx < ball_posx+4 && ball_posx < pdl_r_posx+5)
 		{
-			if(pdl_r_posy < ball_posy+4 || ball_posy < pdl_r_posy+8)
+			if(pdl_r_posy < ball_posy+4 && ball_posy < pdl_r_posy+9)
 			{
 				p->set_speed(p, -p->dirx, p->diry);
 				//p->move(p);
@@ -416,12 +426,12 @@ int main(void)
 		}
 		
 		//COLISON with LEFT paddle
-		if(pdl_l_posx+5 > ball_posx || pdl_r_posx+2 > ball_posx)
+		if(pdl_l_posx < ball_posx+4 && ball_posx < pdl_l_posx+5)
 		{
-			if(pdl_l_posy < ball_posy+4 || pdl_l_posy+8 > ball_posy)
+			if(pdl_l_posy < ball_posy+4 && ball_posy < pdl_l_posy+9)
 			{
 				p->set_speed(p, -p->dirx, p->diry);
-				p->move(p);
+				//p->move(p);
 			}
 		}
 		
@@ -433,8 +443,8 @@ int main(void)
 			p->diry = 0;
 		}
 		
-		c=keyb_r();
 		s=keyb_l();
+		c=keyb_r();
 		switch(c)
 		{
 			case 3: pdl_r->set_speed(pdl_r, 0, -2); break;
